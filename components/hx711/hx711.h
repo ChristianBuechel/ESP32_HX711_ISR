@@ -21,8 +21,6 @@ extern "C"
 // HX711 data pin configuration 
 #define DOUT_PIN   GPIO_NUM_18
 #define PD_SCK_PIN GPIO_NUM_19
-#define RMT_RX_PIN GPIO_NUM_21
-
 
     typedef struct
     {

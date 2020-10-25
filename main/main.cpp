@@ -21,9 +21,7 @@ extern "C"
     void app_main();
 }
 
-
 rmt_item32_t wave25[] = { // use for strobing HX711
-//	{{{10, 0, 10, 0}}},     // keep L for 2us (because of ISR latency prob not needed)
 	{{{10, 1, 10, 0}}},     // H for 1us and L for 1us (line is pulled down)
 	{{{10, 1, 10, 0}}},     // H for 1us and L for 1us (line is pulled down)
 	{{{10, 1, 10, 0}}},     // H for 1us and L for 1us (line is pulled down)
@@ -64,13 +62,9 @@ void app_main(void)
 
 
 	rmt_fill_tx_items(RMT_TX_CHANNEL, wave25, sizeof(wave25) / sizeof(rmt_item32_t), 0);
-    //wake up HX711
-    //gpio_set_level(PD_SCK_PIN, 0);
+    
+    gpio_set_level(PD_SCK_PIN, 0);    //enable chip
 
-    //enable chip
-    gpio_set_level(PD_SCK_PIN, 0);
-    //rmt_tx_start(RMT_TX_CHANNEL, true);
-    // and fire for once 
     while (1) //main loop
     {
         if (xQueueReceive(hx711_events, &hx711ev, 0)) //do not wait

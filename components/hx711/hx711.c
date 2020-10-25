@@ -90,7 +90,8 @@ static void IRAM_ATTR rmt_isr_handler(void *arg)
         }
     //make package ready for queue
     evt.time   = esp_timer_get_time(); //time stamp
-    evt.result = 42;                   //just a beginning
+    evt.result0 = data[0].level0;                   //just a beginning
+    evt.result1 = data[0].duration0;                   //just a beginning
     evt.n_data = n_data;
     xQueueSendFromISR(hx711_queue, &evt, &HPTaskAwoken);
 

@@ -77,9 +77,10 @@ void app_main(void)
         {            
             ESP_LOGI(TAG, "Last reading(us)    : %d", uint32_t(hx711ev.time));
             ESP_LOGI(TAG, "Number of RMT items : %d", hx711ev.n_data);
-            ESP_LOGI(TAG, "Value               : %d", uint32_t(hx711ev.result));
-            float value = ((float)hx711ev.result - offset) / scale; //hx711 value to g
-            ESP_LOGI(TAG, "Weight (g)          : %f", value);
+            ESP_LOGI(TAG, "Level               : %d", uint32_t(hx711ev.result0));
+            ESP_LOGI(TAG, "Duration            : %d", uint32_t(hx711ev.result1));
+            //float value = ((float)hx711ev.result - offset) / scale; //hx711 value to g
+            //ESP_LOGI(TAG, "Weight (g)          : %f", value);
             ESP_LOGI(TAG, "\n");        
         }
         vTaskDelay(10 / portTICK_RATE_MS); //wait

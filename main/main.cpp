@@ -75,13 +75,13 @@ void app_main(void)
     {
         if (xQueueReceive(hx711_events, &hx711ev, 0)) //do not wait
         {            
-            ESP_LOGI(TAG, "Last reading(us)    : %d", uint32_t(hx711ev.time));
-            ESP_LOGI(TAG, "Number of RMT items : %d", hx711ev.n_data);
-            ESP_LOGI(TAG, "Level               : %d", uint32_t(hx711ev.result0));
-            ESP_LOGI(TAG, "Duration            : %d", uint32_t(hx711ev.result1));
-            //float value = ((float)hx711ev.result - offset) / scale; //hx711 value to g
-            //ESP_LOGI(TAG, "Weight (g)          : %f", value);
-            ESP_LOGI(TAG, "\n");        
+            /*ESP_LOGI(TAG, "Last reading(us)     : %d", uint32_t(hx711ev.time));
+            ESP_LOGI(TAG, "Number of RMT items  : %d", hx711ev.n_data);
+            ESP_LOGI(TAG, "Cumulative duration  : %d", hx711ev.cumdur);*/
+            ESP_LOGI(TAG, "Value                : %d", hx711ev.value);
+            /*float weight = ((float)hx711ev.value - offset) / scale; //hx711 value to g
+            ESP_LOGI(TAG, "Weight (g)          : %f", weight);
+            ESP_LOGI(TAG, "\n");*/        
         }
         vTaskDelay(10 / portTICK_RATE_MS); //wait
     }

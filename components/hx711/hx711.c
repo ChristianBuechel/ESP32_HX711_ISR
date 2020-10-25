@@ -63,9 +63,8 @@ static void IRAM_ATTR rmt_isr_handler(void *arg)
 // will fire once data is there and rmt times out
 {
     uint32_t intr_st;
-    uint8_t i;
-    uint16_t n_data, b1, b2;
-    uint16_t HX711_value = 0;
+    uint8_t i,j;
+    uint16_t n_data;
     hx711_event_t evt;
     //read RMT interrupt status.
     intr_st = RMT.int_st.val;
@@ -80,19 +79,47 @@ static void IRAM_ATTR rmt_isr_handler(void *arg)
 
     n_data = rmt_get_mem_len(RMT_RX_CHANNEL); //n pulses
     volatile rmt_item32_t *data = RMTMEM.chan[RMT_RX_CHANNEL].data32;
-    
+
     //here we can decode the pulses to a value
 
-    for (i = 0; i < n_data; i++) //max 24 pulses 
+    j = 0;
+    uint32_t ref    = 0;
+    uint32_t value  = 0; 
+    uint32_t cumdur = 0;
+    uint32_t start  = 174; // 164 pulses (16.4us) until RMT fires strobe
+                           // then wait 1us and we should be in the middle of 1st strobe
+    for (i = 0; i < n_data; i++) 
+    {
+        cumdur += data[i].duration0;
+        ref = j*20+start;
+        while (ref<cumdur)
         {
-            b1 = (data[i].duration0);
-            b2 = (data[i].duration1);
-        }
+            //value |= (data[i].level0 << (24-j));
+            value |= (data[i].level0 << (23-j));
+            j++;
+            ref = j*20+start;
+        } 
+
+        cumdur += data[i].duration1;
+        //ref = j*20+start; not needed I guess
+        while (ref<cumdur)
+        {
+            //value |= (data[i].level1 << (24-j));
+            value |= (data[i].level1 << (23-j));
+            j++;
+            ref = j*20+start;
+        } 
+    }
+       if (value & 0x800000)
+        value |= 0xff000000;
+
+	//value = value^0x800000;
+
     //make package ready for queue
-    evt.time   = esp_timer_get_time(); //time stamp
-    evt.result0 = data[0].level0;                   //just a beginning
-    evt.result1 = data[0].duration0;                   //just a beginning
-    evt.n_data = n_data;
+    evt.time    = esp_timer_get_time(); //time stamp
+    evt.cumdur  = cumdur;    //just a beginning
+    evt.value   = value;     //just a beginning
+    evt.n_data  = n_data;
     xQueueSendFromISR(hx711_queue, &evt, &HPTaskAwoken);
 
     RMT.conf_ch[RMT_RX_CHANNEL].conf1.mem_wr_rst = 1; //reset memory
@@ -126,27 +153,27 @@ QueueHandle_t *hx711_init()
     //configure dout (data from hx711)
     gpio_config_t hx711;
 
-    hx711.intr_type    = GPIO_INTR_NEGEDGE;
-    hx711.mode         = GPIO_MODE_INPUT;
-    hx711.pull_up_en   = GPIO_PULLUP_ENABLE;
+    hx711.intr_type = GPIO_INTR_NEGEDGE;
+    hx711.mode = GPIO_MODE_INPUT;
+    hx711.pull_up_en = GPIO_PULLUP_ENABLE;
     hx711.pull_down_en = GPIO_PULLDOWN_DISABLE;
     hx711.pin_bit_mask = (1ULL << DOUT_PIN); //
     gpio_config(&hx711);
 
     //configure RMT for RX
     rmt_config_t config;
-    config.channel  = RMT_RX_CHANNEL;
+    config.channel = RMT_RX_CHANNEL;
     config.gpio_num = DOUT_PIN;
     config.rmt_mode = RMT_MODE_RX;
     config.mem_block_num = 1; // use default of 1 memory block
-    config.clk_div = 8;      //0.1 us resolution
+    config.clk_div = 8;       //0.1 us resolution
     config.rx_config.filter_en = true;
     config.rx_config.filter_ticks_thresh = 10; //only pulses longer than 5us
-    config.rx_config.idle_threshold = 6000;  // 600us  
-                                            //readout takes about max 27 * 2 us = 54 us
-                                              //we use the 10 SPS mode, i a sample every 100ms
-                                              //using 200us works
-                                              //UPDATE: scoped it and ???
+    config.rx_config.idle_threshold = 6000;    // 600us
+                                               //readout takes about max 27 * 2 us = 54 us
+                                               //we use the 10 SPS mode, i a sample every 100ms
+                                               //using 200us works
+                                               //UPDATE: scoped it and ???
     ESP_ERROR_CHECK(rmt_config(&config));
     rmt_set_rx_intr_en(config.channel, true);
     rmt_isr_register(rmt_isr_handler, NULL, ESP_INTR_FLAG_LEVEL1, &s_rmt_driver_intr_handle);
@@ -154,9 +181,9 @@ QueueHandle_t *hx711_init()
     ESP_LOGI(TAG, "Installed RMT RX driver\n");
 
     //configure GPIO for RMT TX
-    hx711.intr_type    = GPIO_INTR_DISABLE;
-    hx711.mode         = GPIO_MODE_OUTPUT;
-    hx711.pull_up_en   = GPIO_PULLUP_DISABLE;
+    hx711.intr_type = GPIO_INTR_DISABLE;
+    hx711.mode = GPIO_MODE_OUTPUT;
+    hx711.pull_up_en = GPIO_PULLUP_DISABLE;
     hx711.pull_down_en = GPIO_PULLDOWN_ENABLE;
     hx711.pin_bit_mask = (1ULL << PD_SCK_PIN); //
     gpio_config(&hx711);
@@ -165,7 +192,7 @@ QueueHandle_t *hx711_init()
     gpio_set_level(PD_SCK_PIN, 1);
 
     //configure RMT for TX
-    config.channel  = RMT_TX_CHANNEL;
+    config.channel = RMT_TX_CHANNEL;
     config.gpio_num = PD_SCK_PIN;
     config.mem_block_num = 1; // use default of 1 memory block
     config.tx_config.carrier_en = false;
@@ -175,7 +202,6 @@ QueueHandle_t *hx711_init()
     //config.clk_div = 80; //start with 1us res later change to 8 = 0.1 us resolution
     ESP_ERROR_CHECK(rmt_config(&config));
     ESP_LOGI(TAG, "Installed RMT TX driver 0.\n");
-
 
     //add interrupt to DOUT
     gpio_install_isr_service(ESP_INTR_FLAG_DEFAULT);

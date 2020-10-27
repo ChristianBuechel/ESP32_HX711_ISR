@@ -43,8 +43,10 @@ static void IRAM_ATTR hx711_interrupt(void *arg)
 
     // 3) start transmitting via RMT TX
     rmt_get_status(RMT_TX_CHANNEL, &status);
-    if ((status & RMT_STATE_CH1) == 0)      //0 : idle, 1 : send, 2 : read memory, 3 : receive, 4 : wait
+    if ((status & RMT_STATE_CH1) == 0) //0 : idle, 1 : send, 2 : read memory, 3 : receive, 4 : wait
+    {
         rmt_tx_start(RMT_TX_CHANNEL, true); //send only if idle , if sending a new item while still sending screws everything up big time
+    }
     /* a problem might be that we don't know the precise interval between DOUT going low
        (ie firing this ISR) and the first pulse sent from the RMT
        but we can scope it  --> done
@@ -59,7 +61,7 @@ static void IRAM_ATTR rmt_isr_handler(void *arg)
 // will fire once RMT data is there and RMT times out
 {
     uint32_t intr_st;
-    uint8_t i,j;
+    uint8_t i, j;
     uint16_t n_data;
     hx711_event_t evt;
     //read RMT interrupt status.
@@ -80,37 +82,40 @@ static void IRAM_ATTR rmt_isr_handler(void *arg)
 
     j = 0;
     uint32_t ref    = 0;
-    uint32_t value  = 0; 
+    uint32_t value  = 0;
     uint32_t cumdur = 0;
-    uint32_t start  = 174; // 164 pulses (16.4us) until RMT fires strobe (sfter DOUT goes L)
+    uint32_t start  = 18;  // 8 pulses (8us) until RMT fires strobe (sfter DOUT goes L)
                            // then wait 1us and we should be in the middle of 1st strobe
-    for (i = 0; i < n_data; i++) 
+
+
+    for (i = 0; i < n_data; i++) // start                                  
     {
         cumdur += data[i].duration0; // cumulative duration of all pulses
-        ref = j*20+start; //ref = timepoint of next bit
-        while (ref<cumdur) //if ref occurred in this window
+        ref = j * 20 + start;        //ref = timepoint of next bit
+        while (ref < cumdur)         //if ref occurred in this window
         {
-            value |= (data[i].level0 << (23-j)); //simply take the value shift and OR
+            value |= (data[i].level0 << (23 - j)); //simply take the value shift and OR
             j++;
-            ref = j*20+start;
-        } 
+            ref = j * 20 + start;
+        }
 
         cumdur += data[i].duration1; //same with duration1
-        while (ref<cumdur)
+        while (ref < cumdur)
         {
-            value |= (data[i].level1 << (23-j));
+            value |= (data[i].level1 << (23 - j));
             j++;
-            ref = j*20+start;
-        } 
+            ref = j * 20 + start;
+        }
     }
-       if (value & 0x800000)
+    if (value & 0x800000)
         value |= 0xff000000;
 
     //make package ready for queue
-    evt.time    = esp_timer_get_time(); //time stamp
-    evt.cumdur  = cumdur;    //just a beginning
-    evt.value   = value;     //just a beginning
-    evt.n_data  = n_data;
+    evt.time = esp_timer_get_time(); //time stamp
+    evt.cumdur = cumdur;             //just a beginning
+    evt.value = (int32_t)value;      //just a beginning
+    //evt.n_data  = n_data;
+    evt.n_data = j;
     xQueueSendFromISR(hx711_queue, &evt, &HPTaskAwoken);
 
     RMT.conf_ch[RMT_RX_CHANNEL].conf1.mem_wr_rst = 1; //reset memory
@@ -121,7 +126,7 @@ static void IRAM_ATTR rmt_isr_handler(void *arg)
     RMT.int_st.val = intr_st;
     // but clear bit for RX_receive int
     RMT.int_clr.ch0_rx_end = 1; //RMT channel 0 is RX
-                                
+
     gpio_set_intr_type(DOUT_PIN, GPIO_INTR_NEGEDGE); // dont forget to restart interrupt
 
     if (HPTaskAwoken == pdTRUE)
@@ -156,11 +161,11 @@ QueueHandle_t *hx711_init()
     config.gpio_num = DOUT_PIN;
     config.rmt_mode = RMT_MODE_RX;
     config.mem_block_num = 1; // use default of 1 memory block
-    config.clk_div = 8;       // 0.1 us resolution
+    config.clk_div = 80;      // 1 us resolution
     config.rx_config.filter_en = true;
-    config.rx_config.filter_ticks_thresh = 10; //only pulses longer than 5us
+    config.rx_config.filter_ticks_thresh = 5; //only pulses longer than 5us
     config.rx_config.idle_threshold = 6000;    // 600us
-                                               //readout takes about max 27 * 2 us = 54 us
+                                               //readout takes about max 27 * 20 us = 540 us
                                                //we use the 10 SPS mode, i a sample every 100ms
                                                //using 200us works
                                                //UPDATE: scoped it and ???

@@ -26,7 +26,7 @@ extern "C"
     {
         uint64_t time;   // time of measurement
         uint32_t cumdur; // duration of all pulses
-        uint32_t value;  // 24 bit value of HX711
+        int32_t value;  // 24 bit value of HX711
         uint16_t n_data; // number of pulses received
     } hx711_event_t;
 

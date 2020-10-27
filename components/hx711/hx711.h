@@ -15,9 +15,6 @@ extern "C"
 
 #define ESP_INTR_FLAG_DEFAULT 0
 
-#define RMT_RX_CHANNEL RMT_CHANNEL_0 //channel 0 
-#define RMT_TX_CHANNEL RMT_CHANNEL_1 //channel 1 
-
 // HX711 data pin configuration 
 #define DOUT_PIN   GPIO_NUM_18
 #define PD_SCK_PIN GPIO_NUM_19
@@ -25,9 +22,7 @@ extern "C"
     typedef struct
     {
         uint64_t time;   // time of measurement
-        uint32_t cumdur; // duration of all pulses
         int32_t value;  // 24 bit value of HX711
-        uint16_t n_data; // number of pulses received
     } hx711_event_t;
 
     QueueHandle_t *hx711_init();
